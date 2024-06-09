@@ -12,6 +12,102 @@
 //! All other submodules and structs are mostly concerned with holding editor data about the way it displays current buffer region(s).
 //!
 //! If you're looking to improve Vim mode, you should check out Vim crate that wraps Editor and overrides its behaviour.
+use std::ops::{Mul, Not as _};
+use std::{
+    any::TypeId,
+    borrow::Cow,
+    cmp::{self, Ordering, Reverse},
+    mem,
+    num::NonZeroU32,
+    ops::{ControlFlow, Deref, DerefMut, Range, RangeInclusive},
+    path::Path,
+    sync::Arc,
+    time::{Duration, Instant},
+};
+
+use aho_corasick::AhoCorasick;
+use anyhow::{anyhow, Context as _, Result};
+use convert_case::{Case, Casing};
+use futures::FutureExt;
+use itertools::Itertools;
+use ordered_float::OrderedFloat;
+use parking_lot::{Mutex, RwLock};
+use rand::prelude::*;
+use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
+
+use ::git::diff::{DiffHunk, DiffHunkStatus};
+use ::git::{parse_git_remote_url, BuildPermalinkParams, GitHostingProviderRegistry};
+pub(crate) use actions::*;
+use blink_manager::BlinkManager;
+use client::{Collaborator, ParticipantIndex};
+use clock::{Lamport, ReplicaId};
+use collections::{BTreeMap, Bound, HashMap, HashSet, VecDeque};
+use debounced_delay::DebouncedDelay;
+use display_map::*;
+pub use display_map::{DisplayPoint, FoldPlaceholder};
+pub use editor_settings::{CurrentLineHighlight, EditorSettings};
+use element::LineWithInvisibles;
+pub use element::{
+    CursorLayout, EditorElement, HighlightedRange, HighlightedRangeLine, PointForPosition,
+};
+use fuzzy::{StringMatch, StringMatchCandidate};
+use git::blame::GitBlame;
+use git::diff_hunk_to_display;
+use gpui::{div, impl_actions, point, prelude::*, px, relative, size, uniform_list, Action, AnyElement, AppContext, AsyncWindowContext, AvailableSpace, BackgroundExecutor, Bounds, ClipboardItem, Context, DispatchPhase, ElementId, EventEmitter, FocusHandle, FocusableView, FontId, FontStyle, FontWeight, HighlightStyle, Hsla, InteractiveText, KeyContext, ListSizingBehavior, Model, MouseButton, PaintQuad, ParentElement, Pixels, Render, SharedString, Size, StrikethroughStyle, Styled, StyledText, Subscription, Task, TextStyle, UnderlineStyle, UniformListScrollHandle, View, ViewContext, ViewInputHandler, VisualContext, WeakView, WhiteSpace, WindowContext, WindowOptions, ScrollHandle};
+use highlight_matching_bracket::refresh_matching_bracket_highlights;
+use hover_links::{HoverLink, HoveredLinkState, InlayHighlight};
+use hover_popover::{hide_hover, HoverState};
+use hunk_diff::ExpandedHunks;
+pub(crate) use hunk_diff::HunkToExpand;
+use indent_guides::ActiveIndentGuidesState;
+use inlay_hint_cache::{InlayHintCache, InlaySplice, InvalidationStrategy};
+pub use inline_completion_provider::*;
+pub use items::MAX_TAB_TITLE_LEN;
+use language::{char_kind, language_settings::{self, all_language_settings, InlayHintSettings}, markdown, point_from_lsp, AutoindentMode, BracketPair, Buffer, Capability, CharKind, CodeLabel, CursorShape, Diagnostic, Documentation, IndentKind, IndentSize, Language, OffsetRangeExt, Point, Selection, SelectionGoal, TransactionId, ParsedMarkdown};
+use language::{BufferRow, Runnable, RunnableRange};
+use language::markdown::{parse_markdown, ParsedRegion};
+use lsp::{DiagnosticSeverity, LanguageServerId};
+use mouse_context_menu::MouseContextMenu;
+use movement::TextLayoutDetails;
+pub use multi_buffer::{
+    Anchor, AnchorRangeExt, ExcerptId, ExcerptRange, MultiBuffer, MultiBufferSnapshot, ToOffset,
+    ToPoint,
+};
+use multi_buffer::{ExpandExcerptDirection, MultiBufferPoint, MultiBufferRow, ToOffsetUtf16};
+use project::project_settings::{GitGutterSetting, ProjectSettings};
+use project::{
+    CodeAction, Completion, FormatTrigger, Item, Location, Project, ProjectPath,
+    ProjectTransaction, TaskSourceKind, WorktreeId,
+};
+use rpc::{proto::*, ErrorExt};
+use scroll::{Autoscroll, OngoingScroll, ScrollAnchor, ScrollManager, ScrollbarAutoHide};
+use selections_collection::{resolve_multiple, MutableSelectionsCollection, SelectionsCollection};
+use settings::{update_settings_file, Settings, SettingsStore};
+use snippet::Snippet;
+pub use sum_tree::Bias;
+use sum_tree::TreeMap;
+use task::{ResolvedTask, TaskTemplate, TaskVariables};
+use text::{BufferId, OffsetUtf16, Rope};
+use theme::{
+    observe_buffer_font_size_adjustment, ActiveTheme, PlayerColor, StatusColors, SyntaxTheme,
+    ThemeColors, ThemeSettings,
+};
+use ui::{
+    h_flex, prelude::*, ButtonSize, ButtonStyle, IconButton, IconName, IconSize, ListItem, Popover,
+    Tooltip,
+};
+use util::{defer, maybe, post_inc, RangeExt, ResultExt, TryFutureExt};
+use workspace::item::{ItemHandle, PreviewTabsSettings};
+use workspace::notifications::{DetachAndPromptErr, NotificationId};
+use workspace::{
+    searchable::SearchEvent, ItemNavHistory, SplitDirection, ViewId, Workspace, WorkspaceId,
+};
+use workspace::{OpenInTerminal, OpenTerminal, TabBarSettings, Toast};
+
+use crate::hover_links::{find_url, RangeInEditor};
+use crate::hover_popover::InfoPopover;
+
 pub mod actions;
 mod blame_entry_tooltip;
 mod blink_manager;
@@ -40,112 +136,6 @@ pub mod tasks;
 mod editor_tests;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test;
-use ::git::diff::{DiffHunk, DiffHunkStatus};
-use ::git::{parse_git_remote_url, BuildPermalinkParams, GitHostingProviderRegistry};
-pub(crate) use actions::*;
-use aho_corasick::AhoCorasick;
-use anyhow::{anyhow, Context as _, Result};
-use blink_manager::BlinkManager;
-use client::{Collaborator, ParticipantIndex};
-use clock::ReplicaId;
-use collections::{BTreeMap, Bound, HashMap, HashSet, VecDeque};
-use convert_case::{Case, Casing};
-use debounced_delay::DebouncedDelay;
-use display_map::*;
-pub use display_map::{DisplayPoint, FoldPlaceholder};
-pub use editor_settings::{CurrentLineHighlight, EditorSettings};
-use element::LineWithInvisibles;
-pub use element::{
-    CursorLayout, EditorElement, HighlightedRange, HighlightedRangeLine, PointForPosition,
-};
-use futures::FutureExt;
-use fuzzy::{StringMatch, StringMatchCandidate};
-use git::blame::GitBlame;
-use git::diff_hunk_to_display;
-use gpui::{
-    div, impl_actions, point, prelude::*, px, relative, size, uniform_list, Action, AnyElement,
-    AppContext, AsyncWindowContext, AvailableSpace, BackgroundExecutor, Bounds, ClipboardItem,
-    Context, DispatchPhase, ElementId, EventEmitter, FocusHandle, FocusableView, FontId, FontStyle,
-    FontWeight, HighlightStyle, Hsla, InteractiveText, KeyContext, ListSizingBehavior, Model,
-    MouseButton, PaintQuad, ParentElement, Pixels, Render, SharedString, Size, StrikethroughStyle,
-    Styled, StyledText, Subscription, Task, TextStyle, UnderlineStyle, UniformListScrollHandle,
-    View, ViewContext, ViewInputHandler, VisualContext, WeakView, WhiteSpace, WindowContext,
-};
-use highlight_matching_bracket::refresh_matching_bracket_highlights;
-use hover_popover::{hide_hover, HoverState};
-use hunk_diff::ExpandedHunks;
-pub(crate) use hunk_diff::HunkToExpand;
-use indent_guides::ActiveIndentGuidesState;
-use inlay_hint_cache::{InlayHintCache, InlaySplice, InvalidationStrategy};
-pub use inline_completion_provider::*;
-pub use items::MAX_TAB_TITLE_LEN;
-use itertools::Itertools;
-use language::{
-    char_kind,
-    language_settings::{self, all_language_settings, InlayHintSettings},
-    markdown, point_from_lsp, AutoindentMode, BracketPair, Buffer, Capability, CharKind, CodeLabel,
-    CursorShape, Diagnostic, Documentation, IndentKind, IndentSize, Language, OffsetRangeExt,
-    Point, Selection, SelectionGoal, TransactionId,
-};
-use language::{BufferRow, Runnable, RunnableRange};
-use task::{ResolvedTask, TaskTemplate, TaskVariables};
-
-use hover_links::{HoverLink, HoveredLinkState, InlayHighlight};
-use lsp::{DiagnosticSeverity, LanguageServerId};
-use mouse_context_menu::MouseContextMenu;
-use movement::TextLayoutDetails;
-pub use multi_buffer::{
-    Anchor, AnchorRangeExt, ExcerptId, ExcerptRange, MultiBuffer, MultiBufferSnapshot, ToOffset,
-    ToPoint,
-};
-use multi_buffer::{ExpandExcerptDirection, MultiBufferPoint, MultiBufferRow, ToOffsetUtf16};
-use ordered_float::OrderedFloat;
-use parking_lot::{Mutex, RwLock};
-use project::project_settings::{GitGutterSetting, ProjectSettings};
-use project::{
-    CodeAction, Completion, FormatTrigger, Item, Location, Project, ProjectPath,
-    ProjectTransaction, TaskSourceKind, WorktreeId,
-};
-use rand::prelude::*;
-use rpc::{proto::*, ErrorExt};
-use scroll::{Autoscroll, OngoingScroll, ScrollAnchor, ScrollManager, ScrollbarAutoHide};
-use selections_collection::{resolve_multiple, MutableSelectionsCollection, SelectionsCollection};
-use serde::{Deserialize, Serialize};
-use settings::{update_settings_file, Settings, SettingsStore};
-use smallvec::SmallVec;
-use snippet::Snippet;
-use std::ops::Not as _;
-use std::{
-    any::TypeId,
-    borrow::Cow,
-    cmp::{self, Ordering, Reverse},
-    mem,
-    num::NonZeroU32,
-    ops::{ControlFlow, Deref, DerefMut, Range, RangeInclusive},
-    path::Path,
-    sync::Arc,
-    time::{Duration, Instant},
-};
-pub use sum_tree::Bias;
-use sum_tree::TreeMap;
-use text::{BufferId, OffsetUtf16, Rope};
-use theme::{
-    observe_buffer_font_size_adjustment, ActiveTheme, PlayerColor, StatusColors, SyntaxTheme,
-    ThemeColors, ThemeSettings,
-};
-use ui::{
-    h_flex, prelude::*, ButtonSize, ButtonStyle, IconButton, IconName, IconSize, ListItem, Popover,
-    Tooltip,
-};
-use util::{defer, maybe, post_inc, RangeExt, ResultExt, TryFutureExt};
-use workspace::item::{ItemHandle, PreviewTabsSettings};
-use workspace::notifications::{DetachAndPromptErr, NotificationId};
-use workspace::{
-    searchable::SearchEvent, ItemNavHistory, SplitDirection, ViewId, Workspace, WorkspaceId,
-};
-use workspace::{OpenInTerminal, OpenTerminal, TabBarSettings, Toast};
-
-use crate::hover_links::find_url;
 
 pub const DEFAULT_MULTIBUFFER_CONTEXT: u32 = 2;
 const CURSOR_BLINK_INTERVAL: Duration = Duration::from_millis(500);
@@ -470,6 +460,8 @@ pub struct Editor {
     context_menu: RwLock<Option<ContextMenu>>,
     mouse_context_menu: Option<MouseContextMenu>,
     completion_tasks: Vec<(CompletionId, Task<Option<()>>)>,
+    signature_help_task: Vec<Task<()>>,
+    signature_help_state: Option<InfoPopover>,
     find_all_references_task_sources: Vec<Anchor>,
     next_completion_id: CompletionId,
     completion_documentation_pre_resolve_debounce: DebouncedDelay,
@@ -1540,6 +1532,10 @@ impl InlayHintRefreshReason {
     }
 }
 
+pub struct SignatureHelpPopover {
+    pub string: String
+}
+
 impl Editor {
     pub fn single_line(cx: &mut ViewContext<Self>) -> Self {
         let buffer = cx.new_model(|cx| Buffer::local("", cx));
@@ -1758,6 +1754,8 @@ impl Editor {
             context_menu: RwLock::new(None),
             mouse_context_menu: None,
             completion_tasks: Default::default(),
+            signature_help_task: Default::default(),
+            signature_help_state: Default::default(),
             find_all_references_task_sources: Vec::new(),
             next_completion_id: 0,
             completion_documentation_pre_resolve_debounce: DebouncedDelay::new(),
@@ -2213,6 +2211,7 @@ impl Editor {
         self.add_selections_state = None;
         self.select_next_state = None;
         self.select_prev_state = None;
+        self.signature_help_state = None;
         self.select_larger_syntax_node_stack.clear();
         self.invalidate_autoclose_regions(&self.selections.disjoint_anchors(), buffer);
         self.snippet_stack
@@ -2761,6 +2760,11 @@ impl Editor {
         }
 
         if self.snippet_stack.pop().is_some() {
+            return true;
+        }
+        
+        if self.signature_help_state.is_some() {
+            self.signature_help_state = None;
             return true;
         }
 
@@ -3785,6 +3789,115 @@ impl Editor {
             }
             Ok(())
         }))
+    }
+
+    pub fn show_signature_help(&mut self, _: &ShowSignatureHelp, cx: &mut ViewContext<Self>) {
+        if self.pending_rename.is_some() {
+            return;
+        }
+
+        let position = self.selections.newest_anchor().head();
+        let (buffer, buffer_position) =
+            if let Some(output) = self.buffer.read(cx).text_anchor_for_position(position, cx) {
+                output
+            } else {
+                return;
+            };
+
+        let task = cx.spawn(move |this, mut cx| async move {
+            let markdown_task_result = this.update(&mut cx, |editor, cx| {
+                let project = editor.project.clone()?;
+                let (maybe_markdown, language_registry) = project.update(cx, |project, mut cx| {
+                    let language_registry = project.languages().clone();
+                    let maybe_markdown = project.signature_help(&buffer, buffer_position, &mut cx).map(|signature_help| {
+                        let signature_help = signature_help?;
+
+                        let (signature_information, maybe_active_signature, maybe_active_parameter) =
+                            (signature_help.signatures, signature_help.active_signature, signature_help.active_parameter);
+
+                        let function_options_count = signature_information.len();
+
+                        let signature_information = maybe_active_signature
+                            .and_then(|active_signature| signature_information.get(active_signature as usize))?;
+
+                        let parameter_information = signature_information.parameters
+                            .as_ref()?
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(i, parameter_information)| match parameter_information.label.clone() {
+                                lsp::ParameterLabel::Simple(string) => {
+                                    if let Some(active_parameter) = maybe_active_parameter {
+                                        if i == active_parameter as usize {
+                                            Some(format!("**{}**", string))
+                                        }
+                                        else {
+                                            Some(string)
+                                        }
+                                    }
+                                    else {
+                                        Some(string)
+                                    }
+                                },
+                                _ => None
+                            })
+                            .join(", ");
+
+                        let markdown = if function_options_count >= 2 {
+                            format!("{} (+{} overload)", parameter_information, function_options_count - 1)
+                        } else {
+                            parameter_information
+                        };
+                        Some(markdown)
+                    });
+                    (maybe_markdown, language_registry)
+                });
+                Some((maybe_markdown, language_registry))
+            });
+            let maybe_info_popover = if let Ok(Some((markdown, language_registry))) = markdown_task_result {
+                let markdown = markdown.await;
+                if let Some(markdown) = markdown {
+                    let parsed_markdown = parse_markdown(markdown.as_str(), &language_registry, None).await;
+                       Some(InfoPopover {
+                           symbol_range: RangeInEditor::Text(
+                               Anchor {
+                                   buffer_id: Some(BufferId::new(1).unwrap()),
+                                   excerpt_id: ExcerptId::min(),
+                                   text_anchor: text::Anchor {
+                                       timestamp: Lamport::MIN,
+                                       offset: 0,
+                                       bias: Bias::Right,
+                                       buffer_id: Some(BufferId::new(1).unwrap())
+                                   }
+                               }..
+                                   Anchor {
+                                       buffer_id: Some(BufferId::new(2).unwrap()),
+                                       excerpt_id: ExcerptId::min(),
+                                       text_anchor: text::Anchor {
+                                           timestamp: Lamport::MIN,
+                                           offset: 0,
+                                           bias: Bias::Right,
+                                           buffer_id: Some(BufferId::new(2).unwrap())
+                                       }
+                                   }
+                           ),
+                           parsed_content: parsed_markdown,
+                           scroll_handle: ScrollHandle::new(),
+                       })
+               }
+               else {
+                   None
+               }
+            } else {
+                None
+            };
+            if let Some(info_popover) = maybe_info_popover {
+                let _ = this.update(&mut cx, |editor, cx| {
+                    editor.signature_help_state = Some(info_popover);
+                    cx.notify();
+                });
+            }
+        });
+        self.signature_help_task.push(task);
     }
 
     pub fn show_completions(&mut self, _: &ShowCompletions, cx: &mut ViewContext<Self>) {
