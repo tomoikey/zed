@@ -2762,6 +2762,11 @@ impl Editor {
         if self.snippet_stack.pop().is_some() {
             return true;
         }
+        
+        if self.signature_help_state.is_some() {
+            self.signature_help_state = None;
+            return true;
+        }
 
         if self.mode == EditorMode::Full {
             if self.active_diagnostics.is_some() {
