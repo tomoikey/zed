@@ -66,7 +66,7 @@ pub use inline_completion_provider::*;
 pub use items::MAX_TAB_TITLE_LEN;
 use language::{char_kind, language_settings::{self, all_language_settings, InlayHintSettings}, markdown, point_from_lsp, AutoindentMode, BracketPair, Buffer, Capability, CharKind, CodeLabel, CursorShape, Diagnostic, Documentation, IndentKind, IndentSize, Language, OffsetRangeExt, Point, Selection, SelectionGoal, TransactionId, ParsedMarkdown};
 use language::{BufferRow, Runnable, RunnableRange};
-use language::markdown::ParsedRegion;
+use language::markdown::{parse_markdown, ParsedRegion};
 use lsp::{DiagnosticSeverity, LanguageServerId};
 use mouse_context_menu::MouseContextMenu;
 use movement::TextLayoutDetails;
@@ -3800,10 +3800,11 @@ impl Editor {
             };
 
         let task = cx.spawn(move |this, mut cx| async move {
-            let info_popover_task_result = this.update(&mut cx, |editor, cx| {
+            let markdown_task_result = this.update(&mut cx, |editor, cx| {
                 let project = editor.project.clone()?;
-                let maybe_info_popover = project.update(cx, |project, mut cx| {
-                    project.signature_help(&buffer, buffer_position, &mut cx).map(|signature_help| {
+                let (maybe_markdown, language_registry) = project.update(cx, |project, mut cx| {
+                    let language_registry = project.languages().clone();
+                    let maybe_markdown = project.signature_help(&buffer, buffer_position, &mut cx).map(|signature_help| {
                         let signature_help = signature_help?;
 
                         let (signature_information, maybe_active_signature, maybe_active_parameter) =
@@ -3836,49 +3837,51 @@ impl Editor {
                             })
                             .join(", ");
 
-                        let text = if function_options_count >= 2 {
-                            format!("{} (+{} overloads)", parameter_information, function_options_count - 1)
+                        let markdown = if function_options_count >= 2 {
+                            format!("{} (+{} overload)", parameter_information, function_options_count - 1)
                         } else {
                             parameter_information
                         };
-
-                        Some(InfoPopover {
-                            symbol_range: RangeInEditor::Text(
-                                Anchor {
-                                    buffer_id: Some(BufferId::new(1).unwrap()),
-                                    excerpt_id: ExcerptId::min(),
-                                    text_anchor: text::Anchor {
-                                        timestamp: Lamport::MIN,
-                                        offset: 0,
-                                        bias: Bias::Right,
-                                        buffer_id: Some(BufferId::new(1).unwrap())
-                                    }
-                                }..
-                                    Anchor {
-                                        buffer_id: Some(BufferId::new(2).unwrap()),
-                                        excerpt_id: ExcerptId::min(),
-                                        text_anchor: text::Anchor {
-                                            timestamp: Lamport::MIN,
-                                            offset: 0,
-                                            bias: Bias::Right,
-                                            buffer_id: Some(BufferId::new(2).unwrap())
-                                        }
-                                    }
-                            ),
-                            parsed_content: ParsedMarkdown {
-                                text,
-                                highlights: Vec::new(),
-                                region_ranges: Vec::new(),
-                                regions: Vec::new(),
-                            },
-                            scroll_handle: ScrollHandle::new(),
-                        })
-                    })
+                        Some(markdown)
+                    });
+                    (maybe_markdown, language_registry)
                 });
-                Some(maybe_info_popover)
+                Some((maybe_markdown, language_registry))
             });
-            let maybe_info_popover = if let Ok(Some(info_popover_task)) = info_popover_task_result {
-               info_popover_task.await
+            let maybe_info_popover = if let Ok(Some((markdown, language_registry))) = markdown_task_result {
+                let markdown = markdown.await;
+                if let Some(markdown) = markdown { 
+                    let parsed_markdown = parse_markdown(markdown.as_str(), &language_registry, None).await;
+                       Some(InfoPopover {
+                           symbol_range: RangeInEditor::Text(
+                               Anchor {
+                                   buffer_id: Some(BufferId::new(1).unwrap()),
+                                   excerpt_id: ExcerptId::min(),
+                                   text_anchor: text::Anchor {
+                                       timestamp: Lamport::MIN,
+                                       offset: 0,
+                                       bias: Bias::Right,
+                                       buffer_id: Some(BufferId::new(1).unwrap())
+                                   }
+                               }..
+                                   Anchor {
+                                       buffer_id: Some(BufferId::new(2).unwrap()),
+                                       excerpt_id: ExcerptId::min(),
+                                       text_anchor: text::Anchor {
+                                           timestamp: Lamport::MIN,
+                                           offset: 0,
+                                           bias: Bias::Right,
+                                           buffer_id: Some(BufferId::new(2).unwrap())
+                                       }
+                                   }
+                           ),
+                           parsed_content: parsed_markdown,
+                           scroll_handle: ScrollHandle::new(),
+                       })
+               }
+               else {
+                   None
+               }
             } else {
                 None
             };
