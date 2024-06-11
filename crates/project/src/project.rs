@@ -5940,7 +5940,8 @@ impl Project {
             })
         }
         else {
-            todo!()
+            // TODO: Handle cases that are not local later
+            Task::ready(None)
         }
     }
 

@@ -1264,19 +1264,34 @@ impl LspCommand for GetSignatureHelp {
         buffer: Model<Buffer>,
         cx: AsyncAppContext
     ) -> Result<Self> {
+        // TODO: Handle cases that are not local later
+        anyhow::bail!("TODO: unimplemented")
+    }
+
+    fn response_to_proto(
+        response: Self::Response,
+        project: &mut Project,
+        peer_id: PeerId,
+        buffer_version: &Global,
+        cx: &mut AppContext
+    ) -> <Self::ProtoRequest as RequestMessage>::Response {
         todo!()
     }
 
-    fn response_to_proto(response: Self::Response, project: &mut Project, peer_id: PeerId, buffer_version: &Global, cx: &mut AppContext) -> <Self::ProtoRequest as RequestMessage>::Response {
-        todo!()
-    }
-
-    async fn response_from_proto(self, message: <Self::ProtoRequest as RequestMessage>::Response, project: Model<Project>, buffer: Model<Buffer>, cx: AsyncAppContext) -> Result<Self::Response> {
-        todo!()
+    async fn response_from_proto(
+        self, 
+        message: <Self::ProtoRequest as RequestMessage>::Response,
+        project: Model<Project>, 
+        buffer: Model<Buffer>, 
+        cx: AsyncAppContext
+    ) -> Result<Self::Response> {
+        // TODO: Handle cases that are not local later
+        anyhow::bail!("TODO: unimplemented")
     }
 
     fn buffer_id_from_proto(message: &Self::ProtoRequest) -> Result<BufferId> {
-        todo!()
+        // TODO: Handle cases that are not local later
+        anyhow::bail!("TODO: unimplemented")
     }
 }
 
