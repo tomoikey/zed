@@ -1,14 +1,11 @@
 #![allow(non_snake_case)]
 
-use super::{entity_messages, messages, request_messages, ConnectionId, TypedEnvelope};
-use anyhow::{anyhow, Result};
+use anyhow::anyhow;
 use async_tungstenite::tungstenite::Message as WebSocketMessage;
-use collections::HashMap;
 use futures::{SinkExt as _, StreamExt as _};
-use prost::Message as _;
-use serde::Serialize;
-use std::any::{Any, TypeId};
+pub use proto::{Message as _, *};
 use std::time::Instant;
+<<<<<<< HEAD
 use std::{
     cmp,
     fmt::Debug,
@@ -519,6 +516,9 @@ entity_messages!(
     UpdateChannelBuffer,
     UpdateChannelBufferCollaborators,
 );
+=======
+use std::{fmt::Debug, io};
+>>>>>>> origin
 
 const KIB: usize = 1024;
 const MIB: usize = KIB * 1024;
@@ -619,109 +619,6 @@ where
     }
 }
 
-impl From<Timestamp> for SystemTime {
-    fn from(val: Timestamp) -> Self {
-        UNIX_EPOCH
-            .checked_add(Duration::new(val.seconds, val.nanos))
-            .unwrap()
-    }
-}
-
-impl From<SystemTime> for Timestamp {
-    fn from(time: SystemTime) -> Self {
-        let duration = time.duration_since(UNIX_EPOCH).unwrap();
-        Self {
-            seconds: duration.as_secs(),
-            nanos: duration.subsec_nanos(),
-        }
-    }
-}
-
-impl From<u128> for Nonce {
-    fn from(nonce: u128) -> Self {
-        let upper_half = (nonce >> 64) as u64;
-        let lower_half = nonce as u64;
-        Self {
-            upper_half,
-            lower_half,
-        }
-    }
-}
-
-impl From<Nonce> for u128 {
-    fn from(nonce: Nonce) -> Self {
-        let upper_half = (nonce.upper_half as u128) << 64;
-        let lower_half = nonce.lower_half as u128;
-        upper_half | lower_half
-    }
-}
-
-pub fn split_worktree_update(
-    mut message: UpdateWorktree,
-    max_chunk_size: usize,
-) -> impl Iterator<Item = UpdateWorktree> {
-    let mut done_files = false;
-
-    let mut repository_map = message
-        .updated_repositories
-        .into_iter()
-        .map(|repo| (repo.work_directory_id, repo))
-        .collect::<HashMap<_, _>>();
-
-    iter::from_fn(move || {
-        if done_files {
-            return None;
-        }
-
-        let updated_entries_chunk_size = cmp::min(message.updated_entries.len(), max_chunk_size);
-        let updated_entries: Vec<_> = message
-            .updated_entries
-            .drain(..updated_entries_chunk_size)
-            .collect();
-
-        let removed_entries_chunk_size = cmp::min(message.removed_entries.len(), max_chunk_size);
-        let removed_entries = message
-            .removed_entries
-            .drain(..removed_entries_chunk_size)
-            .collect();
-
-        done_files = message.updated_entries.is_empty() && message.removed_entries.is_empty();
-
-        let mut updated_repositories = Vec::new();
-
-        if !repository_map.is_empty() {
-            for entry in &updated_entries {
-                if let Some(repo) = repository_map.remove(&entry.id) {
-                    updated_repositories.push(repo)
-                }
-            }
-        }
-
-        let removed_repositories = if done_files {
-            mem::take(&mut message.removed_repositories)
-        } else {
-            Default::default()
-        };
-
-        if done_files {
-            updated_repositories.extend(mem::take(&mut repository_map).into_values());
-        }
-
-        Some(UpdateWorktree {
-            project_id: message.project_id,
-            worktree_id: message.worktree_id,
-            root_name: message.root_name.clone(),
-            abs_path: message.abs_path.clone(),
-            updated_entries,
-            removed_entries,
-            scan_id: message.scan_id,
-            is_last_update: done_files && message.is_last_update,
-            updated_repositories,
-            removed_repositories,
-        })
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -756,29 +653,5 @@ mod tests {
         assert!(stream.encoding_buffer.capacity() <= MAX_BUFFER_LEN);
         stream.read().await.unwrap();
         assert!(stream.encoding_buffer.capacity() <= MAX_BUFFER_LEN);
-    }
-
-    #[gpui::test]
-    fn test_converting_peer_id_from_and_to_u64() {
-        let peer_id = PeerId {
-            owner_id: 10,
-            id: 3,
-        };
-        assert_eq!(PeerId::from_u64(peer_id.as_u64()), peer_id);
-        let peer_id = PeerId {
-            owner_id: u32::MAX,
-            id: 3,
-        };
-        assert_eq!(PeerId::from_u64(peer_id.as_u64()), peer_id);
-        let peer_id = PeerId {
-            owner_id: 10,
-            id: u32::MAX,
-        };
-        assert_eq!(PeerId::from_u64(peer_id.as_u64()), peer_id);
-        let peer_id = PeerId {
-            owner_id: u32::MAX,
-            id: u32::MAX,
-        };
-        assert_eq!(PeerId::from_u64(peer_id.as_u64()), peer_id);
     }
 }
