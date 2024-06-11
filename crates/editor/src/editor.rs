@@ -1022,8 +1022,8 @@ impl CompletionsMenu {
                     .flex_1()
                     .px_1p5()
                     .py_1()
-                    .min_w(px(260.).mul(3.))
-                    .max_w(px(640.).mul(3.))
+                    .min_w(px(260.))
+                    .max_w(px(640.))
                     .w(px(500.))
                     .overflow_y_scroll()
                     .occlude()
@@ -3394,7 +3394,6 @@ impl Editor {
         } else {
             self.hide_context_menu(cx);
         }
-
     }
 
     fn is_completion_trigger(
