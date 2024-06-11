@@ -4565,7 +4565,7 @@ impl Element for EditorElement {
                         px(0.)
                     };
                     let overscroll = size(em_width + right_margin, px(0.));
-        
+
                     snapshot = self.editor.update(cx, |editor, cx| {
                         editor.last_bounds = Some(bounds);
                         editor.gutter_dimensions = gutter_dimensions;
@@ -4916,7 +4916,7 @@ impl Element for EditorElement {
                                     let row = range.start.row;
                                     let has_test_indicator =
                                         self.editor.read(cx).tasks.contains_key(&(buffer_id, row));
-        
+
                                     if !has_test_indicator {
                                         code_actions_indicator = self
                                             .layout_code_actions_indicator(
