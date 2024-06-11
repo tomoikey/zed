@@ -11821,7 +11821,6 @@ impl ViewInputHandler for Editor {
         cx: &mut ViewContext<Self>,
     ) {
         if !self.input_enabled {
-            cx.emit(EditorEvent::InputIgnored { text: text.into() });
             return;
         }
 
