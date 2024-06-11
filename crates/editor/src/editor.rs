@@ -3801,8 +3801,8 @@ impl Editor {
 
         let task = cx.spawn(move |this, mut cx| async move {
             let info_popover_task_result = this.update(&mut cx, |editor, cx| {
-                let project = editor.project.clone().expect("yay");
-                project.update(cx, |project, mut cx| {
+                let project = editor.project.clone()?;
+                let maybe_info_popover = project.update(cx, |project, mut cx| {
                     project.signature_help(&buffer, buffer_position, &mut cx).map(|signature_help| {
                         let signature_help = signature_help?;
 
@@ -3874,9 +3874,10 @@ impl Editor {
                             scroll_handle: ScrollHandle::new(),
                         })
                     })
-                })
+                });
+                Some(maybe_info_popover)
             });
-            let maybe_info_popover = if let Ok(info_popover_task) = info_popover_task_result {
+            let maybe_info_popover = if let Ok(Some(info_popover_task)) = info_popover_task_result {
                info_popover_task.await
             } else {
                 None
