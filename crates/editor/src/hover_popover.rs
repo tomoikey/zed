@@ -418,7 +418,7 @@ async fn parse_blocks(
     }
 
     ParsedMarkdown {
-        text: text.trim().to_string() + "うんち",
+        text: text.trim().to_string(),
         highlights,
         region_ranges,
         regions,

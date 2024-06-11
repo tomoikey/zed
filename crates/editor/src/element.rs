@@ -2601,12 +2601,22 @@ impl EditorElement {
          &self,
          hitbox: &Hitbox,
          content_origin: gpui::Point<Pixels>,
+         scroll_pixel_position: gpui::Point<Pixels>,
+         display_point: Option<DisplayPoint>,
          line_height: Pixels,
          em_width: Pixels,
+         display_snapshot: &DisplaySnapshot,
          cx: &mut WindowContext
     ) {
+        let Some(display_point) = display_point else {
+            return;
+        };
 
-        let point = content_origin + point(Pixels(100.), Pixels(100.));
+        let display_point = display_point.to_point(display_snapshot);
+        let start_x = content_origin.x - scroll_pixel_position.x + Pixels(display_point.column as f32 * em_width.0);
+        let start_y = content_origin.y  - scroll_pixel_position.y + Pixels(line_height.0 * (display_point.row as f32 - 2.5));
+
+        let point = point(start_x, start_y);
 
         let max_size = size(
             (120. * em_width) // Default size
@@ -2616,6 +2626,7 @@ impl EditorElement {
                 .min(hitbox.size.height / 2.) // Shrink to half of the editor height
                 .max(MIN_POPOVER_LINE_HEIGHT * line_height), // Apply minimum height of 4 lines
         );
+
         let maybe_element = self.editor.update(cx, |editor, cx| {
             if let Some(popover) = &mut editor.signature_help_state {
                 let element = popover.render(&self.style, max_size, editor.workspace.as_ref().map(|(w, _)| w.clone()), cx);
@@ -4945,8 +4956,11 @@ impl Element for EditorElement {
                     self.layout_signature_help(
                         &hitbox,
                         content_origin,
+                        scroll_pixel_position,
+                        newest_selection_head,
                         line_height,
                         em_width,
+                        &snapshot.display_snapshot,
                         cx
                     );
 
