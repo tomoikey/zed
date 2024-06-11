@@ -2606,7 +2606,7 @@ impl EditorElement {
          cx: &mut WindowContext
     ) {
 
-        let point = content_origin + point(Pixels(0.), Pixels(-50.));
+        let point = content_origin + point(Pixels(100.), Pixels(100.));
 
         let max_size = size(
             (120. * em_width) // Default size

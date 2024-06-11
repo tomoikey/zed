@@ -1,25 +1,15 @@
-use crate::{
-    CodeAction, CoreCompletion, DocumentHighlight, Hover, HoverBlock, HoverBlockKind, InlayHint,
-    InlayHintLabel, InlayHintLabelPart, InlayHintLabelPartTooltip, InlayHintTooltip, Location,
-    LocationLink, MarkupContent, Project, ProjectTransaction, ResolveState,
-};
+use crate::{CodeAction, CoreCompletion, DocumentHighlight, Hover, HoverBlock, HoverBlockKind, InlayHint, InlayHintLabel, InlayHintLabelPart, InlayHintLabelPartTooltip, InlayHintTooltip, Location, LocationLink, MarkupContent, Project, ProjectTransaction, ResolveState};
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use client::proto::{self, PeerId};
 use futures::future;
 use gpui::{AppContext, AsyncAppContext, Model};
-use language::{
-    language_settings::{language_settings, InlayHintKind},
-    point_from_lsp, point_to_lsp,
-    proto::{deserialize_anchor, deserialize_version, serialize_anchor, serialize_version},
-    range_from_lsp, range_to_lsp, Anchor, Bias, Buffer, BufferSnapshot, CachedLspAdapter, CharKind,
-    OffsetRangeExt, PointUtf16, ToOffset, ToPointUtf16, Transaction, Unclipped,
-};
-use lsp::{
-    CompletionListItemDefaultsEditRange, DocumentHighlightKind, LanguageServer, LanguageServerId,
-    OneOf, ServerCapabilities,
-};
+use language::{language_settings::{language_settings, InlayHintKind}, point_from_lsp, point_to_lsp, proto::{deserialize_anchor, deserialize_version, serialize_anchor, serialize_version}, range_from_lsp, range_to_lsp, Anchor, Bias, Buffer, BufferSnapshot, CachedLspAdapter, CharKind, OffsetRangeExt, PointUtf16, ToOffset, ToPointUtf16, Transaction, Unclipped, Documentation};
+use lsp::{CompletionListItemDefaultsEditRange, DocumentHighlightKind, LanguageServer, LanguageServerId, OneOf, ServerCapabilities, SignatureHelp};
 use std::{cmp::Reverse, ops::Range, path::Path, sync::Arc};
+use clock::Global;
+use lsp::request::Request;
+use rpc::proto::RequestMessage;
 use text::{BufferId, LineEnding};
 
 pub fn lsp_formatting_options(tab_size: u32) -> lsp::FormattingOptions {
@@ -117,6 +107,11 @@ pub(crate) struct GetReferences {
 }
 
 pub(crate) struct GetDocumentHighlights {
+    pub position: PointUtf16,
+}
+
+#[derive(Clone)]
+pub(crate) struct GetSignatureHelp {
     pub position: PointUtf16,
 }
 
@@ -1216,6 +1211,72 @@ impl LspCommand for GetDocumentHighlights {
 
     fn buffer_id_from_proto(message: &proto::GetDocumentHighlights) -> Result<BufferId> {
         BufferId::new(message.buffer_id)
+    }
+}
+
+#[async_trait(?Send)]
+impl LspCommand for GetSignatureHelp {
+    type Response = Option<SignatureHelp>;
+    type LspRequest = lsp::request::SignatureHelpRequest;
+    type ProtoRequest = proto::GetHover; // TODO
+
+    fn to_lsp(
+        &self,
+        path: &Path,
+        _: &Buffer,
+        _: &Arc<LanguageServer>,
+        _: &AppContext
+    ) -> <Self::LspRequest as Request>::Params {
+        lsp::SignatureHelpParams {
+            context: None,
+            text_document_position_params: lsp::TextDocumentPositionParams {
+                text_document: lsp::TextDocumentIdentifier {
+                    uri: lsp::Url::from_file_path(path).unwrap(),
+                },
+                position: point_to_lsp(self.position),
+            },
+            work_done_progress_params: Default::default(),
+        }
+    }
+
+    async fn response_from_lsp(
+        self,
+        message: <Self::LspRequest as Request>::Result,
+        _: Model<Project>,
+        _: Model<Buffer>,
+        _: LanguageServerId,
+        _: AsyncAppContext
+    ) -> Result<Self::Response> {
+        Ok(message)
+    }
+
+    fn to_proto(
+        &self,
+        project_id: u64,
+        buffer: &Buffer
+    ) -> Self::ProtoRequest {
+        todo!()
+    }
+
+    async fn from_proto(
+        message: Self::ProtoRequest,
+        project: Model<Project>,
+        buffer: Model<Buffer>,
+        cx: AsyncAppContext
+    ) -> Result<Self> {
+        todo!()
+    }
+
+    fn response_to_proto(response: Self::Response, project: &mut Project, peer_id: PeerId, buffer_version: &Global, cx: &mut AppContext) -> <Self::ProtoRequest as RequestMessage>::Response {
+        todo!()
+    }
+
+    async fn response_from_proto(self, message: <Self::ProtoRequest as RequestMessage>::Response, project: Model<Project>, buffer: Model<Buffer>, cx: AsyncAppContext) -> Result<Self::Response> {
+        todo!()
+    }
+
+    fn buffer_id_from_proto(message: &Self::ProtoRequest) -> Result<BufferId> {
+        todo!()
     }
 }
 

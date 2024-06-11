@@ -3793,7 +3793,7 @@ impl Editor {
         }
 
         let position = self.selections.newest_anchor().head();
-        let (buffer, _buffer_position) =
+        let (buffer, buffer_position) =
             if let Some(output) = self.buffer.read(cx).text_anchor_for_position(position, cx) {
                 output
             } else {
@@ -3801,41 +3801,93 @@ impl Editor {
             };
 
         let task = cx.spawn(move |this, mut cx| async move {
-            let _ = this.update(&mut cx, |editor, cx| {
-                let info_popover = InfoPopover {
-                    symbol_range: RangeInEditor::Text(
-                        Anchor {
-                            buffer_id: Some(BufferId::new(1).unwrap()),
-                            excerpt_id: ExcerptId::min(),
-                            text_anchor: text::Anchor {
-                                timestamp: Lamport::MIN,
-                                offset: 0,
-                                bias: Bias::Right,
-                                buffer_id: Some(BufferId::new(1).unwrap())
-                            }
-                        }..
-                        Anchor {
-                            buffer_id: Some(BufferId::new(2).unwrap()),
-                            excerpt_id: ExcerptId::min(),
-                            text_anchor: text::Anchor {
-                                timestamp: Lamport::MIN,
-                                offset: 0,
-                                bias: Bias::Right,
-                                buffer_id: Some(BufferId::new(2).unwrap())
-                            }
-                        }
-                    ),
-                    parsed_content: ParsedMarkdown {
-                        text: String::from("見てみて！！ Signature Helpです！！！\nちんちん！！！"),
-                        highlights: Vec::new(),
-                        region_ranges: Vec::new(),
-                        regions: Vec::new(),
-                    },
-                    scroll_handle: ScrollHandle::new(),
-                };
-                editor.signature_help_state = Some(info_popover);
-                cx.notify();
+            let info_popover_task_result = this.update(&mut cx, |editor, cx| {
+                let project = editor.project.clone().expect("yay");
+                project.update(cx, |project, mut cx| {
+                    project.signature_help(&buffer, buffer_position, &mut cx).map(|signature_help| {
+                        let signature_help = signature_help?;
+
+                        let (signature_information, maybe_active_signature, maybe_active_parameter) =
+                            (signature_help.signatures, signature_help.active_signature, signature_help.active_parameter);
+
+                        let function_options_count = signature_information.len();
+
+                        let signature_information = maybe_active_signature
+                            .and_then(|active_signature| signature_information.get(active_signature as usize))?;
+
+                        let parameter_information = signature_information.parameters
+                            .as_ref()?
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(i, parameter_information)| match parameter_information.label.clone() {
+                                lsp::ParameterLabel::Simple(string) => {
+                                    if let Some(active_parameter) = maybe_active_parameter {
+                                        if i == active_parameter as usize {
+                                            Some(format!("**{}**", string))
+                                        }
+                                        else {
+                                            Some(string)
+                                        }
+                                    }
+                                    else {
+                                        Some(string)
+                                    }
+                                },
+                                _ => None
+                            })
+                            .join(", ");
+
+                        let text = if function_options_count >= 2 {
+                            format!("{} (+{} overloads)", parameter_information, function_options_count - 1)
+                        } else {
+                            parameter_information
+                        };
+
+                        Some(InfoPopover {
+                            symbol_range: RangeInEditor::Text(
+                                Anchor {
+                                    buffer_id: Some(BufferId::new(1).unwrap()),
+                                    excerpt_id: ExcerptId::min(),
+                                    text_anchor: text::Anchor {
+                                        timestamp: Lamport::MIN,
+                                        offset: 0,
+                                        bias: Bias::Right,
+                                        buffer_id: Some(BufferId::new(1).unwrap())
+                                    }
+                                }..
+                                    Anchor {
+                                        buffer_id: Some(BufferId::new(2).unwrap()),
+                                        excerpt_id: ExcerptId::min(),
+                                        text_anchor: text::Anchor {
+                                            timestamp: Lamport::MIN,
+                                            offset: 0,
+                                            bias: Bias::Right,
+                                            buffer_id: Some(BufferId::new(2).unwrap())
+                                        }
+                                    }
+                            ),
+                            parsed_content: ParsedMarkdown {
+                                text,
+                                highlights: Vec::new(),
+                                region_ranges: Vec::new(),
+                                regions: Vec::new(),
+                            },
+                            scroll_handle: ScrollHandle::new(),
+                        })
+                    })
+                })
             });
+            let maybe_info_popover = if let Ok(info_popover_task) = info_popover_task_result {
+               info_popover_task.await
+            } else {
+                None
+            };
+            if let Some(info_popover) = maybe_info_popover {
+                let _ = this.update(&mut cx, |editor, cx| {
+                    editor.signature_help_state = Some(info_popover);
+                    cx.notify();
+                });
+            }
         });
         self.signature_help_task.push(task);
     }
