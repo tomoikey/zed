@@ -1227,12 +1227,15 @@ impl LspCommand for GetSignatureHelp {
         _: &Arc<LanguageServer>,
         _: &AppContext
     ) -> <Self::LspRequest as Request>::Params {
+        let url_result = lsp::Url::from_file_path(path);
+        if url_result.is_err() { 
+            log::error!("an invalid file path has been specified");
+        }
+
         lsp::SignatureHelpParams {
             context: None,
             text_document_position_params: lsp::TextDocumentPositionParams {
-                text_document: lsp::TextDocumentIdentifier {
-                    uri: lsp::Url::from_file_path(path).unwrap(),
-                },
+                text_document: lsp::TextDocumentIdentifier { uri: url_result.expect("invalid file path") },
                 position: point_to_lsp(self.position),
             },
             work_done_progress_params: Default::default(),
@@ -1255,7 +1258,8 @@ impl LspCommand for GetSignatureHelp {
         _: u64,
         _: &Buffer
     ) -> Self::ProtoRequest {
-        todo!()
+        // TODO: Handle cases that are not local later
+        unimplemented!("GetSignatureHelp::to_proto is unimplemented")
     }
 
     async fn from_proto(
@@ -1265,7 +1269,7 @@ impl LspCommand for GetSignatureHelp {
         _: AsyncAppContext
     ) -> Result<Self> {
         // TODO: Handle cases that are not local later
-        anyhow::bail!("TODO: unimplemented")
+        anyhow::bail!("GetSignatureHelp::from_proto is unimplemented")
     }
 
     fn response_to_proto(
@@ -1275,7 +1279,8 @@ impl LspCommand for GetSignatureHelp {
         _: &Global,
         _: &mut AppContext
     ) -> <Self::ProtoRequest as RequestMessage>::Response {
-        todo!()
+        // TODO: Handle cases that are not local later
+        unimplemented!("GetSignatureHelp::response_to_proto is unimplemented")
     }
 
     async fn response_from_proto(
@@ -1286,12 +1291,12 @@ impl LspCommand for GetSignatureHelp {
         _: AsyncAppContext
     ) -> Result<Self::Response> {
         // TODO: Handle cases that are not local later
-        anyhow::bail!("TODO: unimplemented")
+        anyhow::bail!("GetSignatureHelp::response_from_proto is unimplemented")
     }
 
     fn buffer_id_from_proto(_: &Self::ProtoRequest) -> Result<BufferId> {
         // TODO: Handle cases that are not local later
-        anyhow::bail!("TODO: unimplemented")
+        anyhow::bail!("GetSignatureHelp::buffer_id_from_proto is unimplemented")
     }
 }
 
