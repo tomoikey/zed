@@ -3850,7 +3850,7 @@ impl Editor {
             });
             let maybe_info_popover = if let Ok(Some((markdown, language_registry))) = markdown_task_result {
                 let markdown = markdown.await;
-                if let Some(markdown) = markdown { 
+                if let Some(markdown) = markdown {
                     let parsed_markdown = parse_markdown(markdown.as_str(), &language_registry, None).await;
                        Some(InfoPopover {
                            symbol_range: RangeInEditor::Text(
