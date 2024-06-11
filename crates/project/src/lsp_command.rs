@@ -1252,44 +1252,44 @@ impl LspCommand for GetSignatureHelp {
 
     fn to_proto(
         &self,
-        project_id: u64,
-        buffer: &Buffer
+        _: u64,
+        _: &Buffer
     ) -> Self::ProtoRequest {
         todo!()
     }
 
     async fn from_proto(
-        message: Self::ProtoRequest,
-        project: Model<Project>,
-        buffer: Model<Buffer>,
-        cx: AsyncAppContext
+        _: Self::ProtoRequest,
+        _: Model<Project>,
+        _: Model<Buffer>,
+        _: AsyncAppContext
     ) -> Result<Self> {
         // TODO: Handle cases that are not local later
         anyhow::bail!("TODO: unimplemented")
     }
 
     fn response_to_proto(
-        response: Self::Response,
-        project: &mut Project,
-        peer_id: PeerId,
-        buffer_version: &Global,
-        cx: &mut AppContext
+        _: Self::Response,
+        _: &mut Project,
+        _: PeerId,
+        _: &Global,
+        _: &mut AppContext
     ) -> <Self::ProtoRequest as RequestMessage>::Response {
         todo!()
     }
 
     async fn response_from_proto(
-        self, 
-        message: <Self::ProtoRequest as RequestMessage>::Response,
-        project: Model<Project>, 
-        buffer: Model<Buffer>, 
-        cx: AsyncAppContext
+        self,
+        _: <Self::ProtoRequest as RequestMessage>::Response,
+        _: Model<Project>,
+        _: Model<Buffer>,
+        _: AsyncAppContext
     ) -> Result<Self::Response> {
         // TODO: Handle cases that are not local later
         anyhow::bail!("TODO: unimplemented")
     }
 
-    fn buffer_id_from_proto(message: &Self::ProtoRequest) -> Result<BufferId> {
+    fn buffer_id_from_proto(_: &Self::ProtoRequest) -> Result<BufferId> {
         // TODO: Handle cases that are not local later
         anyhow::bail!("TODO: unimplemented")
     }
