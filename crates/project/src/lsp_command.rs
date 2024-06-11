@@ -1218,7 +1218,7 @@ impl LspCommand for GetDocumentHighlights {
 impl LspCommand for GetSignatureHelp {
     type Response = Option<SignatureHelp>;
     type LspRequest = lsp::request::SignatureHelpRequest;
-    type ProtoRequest = proto::GetHover; // TODO
+    type ProtoRequest = proto::GetSignatureHelp;
 
     fn to_lsp(
         &self,
