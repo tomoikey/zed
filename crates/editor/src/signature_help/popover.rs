@@ -1,22 +1,39 @@
 use crate::{Editor, EditorStyle};
 use gpui::{
-    div, AnyElement, InteractiveElement, IntoElement, MouseButton, ParentElement, Pixels, Size,
-    StatefulInteractiveElement, Styled, ViewContext, WeakView,
+    div, AnyElement, ClickEvent, InteractiveElement, IntoElement, MouseButton, ParentElement,
+    Pixels, RenderOnce, Size, StatefulInteractiveElement, Styled, ViewContext, WeakView,
+    WindowContext,
 };
 use language::ParsedMarkdown;
-use ui::StyledExt;
+use ui::PopoverPage;
 use workspace::Workspace;
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Default, PartialEq)]
 pub struct SignatureHelpPopover {
-    pub parsed_content: ParsedMarkdown,
+    pub signature_help_markdowns: Vec<SignatureHelpMarkdown>,
+    pub active_signature: usize,
 }
 
-impl PartialEq for SignatureHelpPopover {
+#[derive(Clone, Debug)]
+pub struct SignatureHelpMarkdown {
+    pub signature: ParsedMarkdown,
+    pub signature_description: Option<ParsedMarkdown>,
+}
+
+impl PartialEq for SignatureHelpMarkdown {
     fn eq(&self, other: &Self) -> bool {
-        let str_equality = self.parsed_content.text.as_str() == other.parsed_content.text.as_str();
-        let highlight_equality = self.parsed_content.highlights == other.parsed_content.highlights;
-        str_equality && highlight_equality
+        let signature_str_equality = self.signature.text.as_str() == other.signature.text.as_str();
+        let signature_highlight_equality = self.signature.highlights == other.signature.highlights;
+
+        let signature_description_str_equality = match (
+            self.signature_description.as_ref(),
+            other.signature_description.as_ref(),
+        ) {
+            (Some(text), Some(other_text)) => text.text.as_str() == other_text.text.as_str(),
+            (None, None) => true,
+            _ => false,
+        };
+        signature_str_equality && signature_highlight_equality && signature_description_str_equality
     }
 }
 
@@ -28,21 +45,62 @@ impl SignatureHelpPopover {
         workspace: Option<WeakView<Workspace>>,
         cx: &mut ViewContext<Editor>,
     ) -> AnyElement {
-        div()
-            .id("signature_help_popover")
-            .elevation_2(cx)
-            .overflow_y_scroll()
-            .max_w(max_size.width)
-            .max_h(max_size.height)
-            .on_mouse_move(|_, cx| cx.stop_propagation())
-            .on_mouse_down(MouseButton::Left, |_, cx| cx.stop_propagation())
-            .child(div().p_2().child(crate::render_parsed_markdown(
-                "signature_help_popover_content",
-                &self.parsed_content,
-                style,
-                workspace,
-                cx,
-            )))
-            .into_any_element()
+        let pages = self
+            .signature_help_markdowns
+            .iter()
+            .map(
+                |SignatureHelpMarkdown {
+                     signature,
+                     signature_description,
+                 }| {
+                    let signature_element = div()
+                        .id("signature_help_popover")
+                        .overflow_y_scroll()
+                        .child(div().p_2().child(crate::render_parsed_markdown(
+                            "signature_help_popover_content",
+                            signature,
+                            style,
+                            workspace.clone(),
+                            cx,
+                        )))
+                        .into_any_element();
+
+                    let children = if let Some(signature_description) = signature_description {
+                        let signature_description_element = div()
+                            .id("signature_help_popover_description")
+                            .child(div().p_2().child(crate::render_parsed_markdown(
+                                "signature_help_popover_description_content",
+                                signature_description,
+                                style,
+                                workspace.clone(),
+                                cx,
+                            )))
+                            .into_any_element();
+                        vec![signature_element, signature_description_element]
+                    } else {
+                        vec![signature_element]
+                    };
+
+                    div()
+                        .flex()
+                        .flex_col()
+                        .max_w(max_size.width)
+                        .max_h(max_size.height)
+                        .on_mouse_move(|_, cx| cx.stop_propagation())
+                        .on_mouse_down(MouseButton::Left, |_, cx| cx.stop_propagation())
+                        .children(children)
+                        .into_any_element()
+                },
+            )
+            .collect();
+
+        PopoverPage::new(
+            pages,
+            self.active_signature,
+            |_: &ClickEvent, _: &mut WindowContext<'_>| {},
+            |_: &ClickEvent, _: &mut WindowContext<'_>| {},
+        )
+        .render(cx)
+        .into_any_element()
     }
 }

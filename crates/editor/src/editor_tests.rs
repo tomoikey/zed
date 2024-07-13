@@ -6971,7 +6971,7 @@ async fn test_handle_input_for_show_signature_help_auto_signature_help_true(
         assert!(signature_help_state.is_some());
         let ParsedMarkdown {
             text, highlights, ..
-        } = signature_help_state.unwrap().parsed_content;
+        } = signature_help_state.unwrap().signature;
         assert_eq!(text, "param1: u8, param2: u8");
         assert_eq!(highlights, vec![(0..10, SIGNATURE_HELP_HIGHLIGHT_CURRENT)]);
     });
@@ -7143,7 +7143,7 @@ async fn test_handle_input_with_different_show_signature_settings(cx: &mut gpui:
         assert!(signature_help_state.is_some());
         let ParsedMarkdown {
             text, highlights, ..
-        } = signature_help_state.unwrap().parsed_content;
+        } = signature_help_state.unwrap().signature;
         assert_eq!(text, "param1: u8, param2: u8");
         assert_eq!(highlights, vec![(0..10, SIGNATURE_HELP_HIGHLIGHT_CURRENT)]);
         editor.signature_help_state = SignatureHelpState::default();
@@ -7185,7 +7185,7 @@ async fn test_handle_input_with_different_show_signature_settings(cx: &mut gpui:
         assert!(signature_help_state.is_some());
         let ParsedMarkdown {
             text, highlights, ..
-        } = signature_help_state.unwrap().parsed_content;
+        } = signature_help_state.unwrap().signature;
         assert_eq!(text, "param1: u8, param2: u8");
         assert_eq!(highlights, vec![(0..10, SIGNATURE_HELP_HIGHLIGHT_CURRENT)]);
     });
@@ -7247,7 +7247,7 @@ async fn test_signature_help(cx: &mut gpui::TestAppContext) {
         assert!(signature_help_state.is_some());
         let ParsedMarkdown {
             text, highlights, ..
-        } = signature_help_state.unwrap().parsed_content;
+        } = signature_help_state.unwrap().signature;
         assert_eq!(text, "param1: u8, param2: u8");
         assert_eq!(highlights, vec![(0..10, SIGNATURE_HELP_HIGHLIGHT_CURRENT)]);
     });
