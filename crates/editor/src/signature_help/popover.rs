@@ -1,16 +1,18 @@
 use crate::{Editor, EditorStyle};
 use gpui::{
-    div, AnyElement, ClickEvent, InteractiveElement, IntoElement, ParentElement, Pixels,
-    RenderOnce, Size, Styled, ViewContext, WeakView, WindowContext,
+    div, AnyElement, InteractiveElement, IntoElement, ParentElement, Pixels, Size, Styled,
+    ViewContext, WeakView,
 };
 use language::ParsedMarkdown;
-use ui::{PopoverPage, StyledExt};
+use std::cell::RefCell;
+use std::rc::Rc;
+use ui::{Button, ButtonCommon, ButtonSize, Clickable, Disableable, Label, StyledExt};
 use workspace::Workspace;
 
 #[derive(Debug, Default, PartialEq)]
 pub struct SignatureHelpPopover {
-    pub signature_help_markdowns: Vec<SignatureHelpMarkdown>,
-    pub active_signature: usize,
+    signature_help_markdowns: Vec<SignatureHelpMarkdown>,
+    current_page: Rc<RefCell<usize>>,
 }
 
 #[derive(Clone, Debug)]
@@ -37,6 +39,26 @@ impl PartialEq for SignatureHelpMarkdown {
 }
 
 impl SignatureHelpPopover {
+    pub fn new(
+        signature_help_markdowns: Vec<SignatureHelpMarkdown>,
+        active_signature: usize,
+    ) -> Self {
+        Self {
+            signature_help_markdowns,
+            current_page: Rc::new(RefCell::new(active_signature)),
+        }
+    }
+
+    fn has_next_page(&self) -> bool {
+        let current_page = *self.current_page.borrow();
+        current_page + 1 < self.signature_help_markdowns.len()
+    }
+
+    fn has_previous_page(&self) -> bool {
+        let current_page = *self.current_page.borrow();
+        current_page > 0
+    }
+
     pub fn render(
         &mut self,
         style: &EditorStyle,
@@ -44,59 +66,104 @@ impl SignatureHelpPopover {
         workspace: Option<WeakView<Workspace>>,
         cx: &mut ViewContext<Editor>,
     ) -> AnyElement {
-        let pages = self
+        let Some(SignatureHelpMarkdown {
+            signature,
+            signature_description,
+        }) = self
             .signature_help_markdowns
-            .iter()
-            .map(
-                |SignatureHelpMarkdown {
-                     signature,
-                     signature_description,
-                 }| {
-                    let signature_element = div()
-                        .id("signature_help_popover")
-                        .max_w(max_size.width)
-                        .child(div().p_2().child(crate::render_parsed_markdown(
-                            "signature_help_popover_content",
-                            signature,
-                            style,
-                            workspace.clone(),
-                            cx,
-                        )))
-                        .into_any_element();
-                    let boarder = div().border_primary(cx).border_1().into_any_element();
+            .get(*self.current_page.borrow())
+        else {
+            return div().into_any_element();
+        };
 
-                    let children = if let Some(signature_description) = signature_description {
-                        let signature_description_element = div()
-                            .id("signature_help_popover_description")
-                            .child(div().p_2().child(crate::render_parsed_markdown(
-                                "signature_help_popover_description_content",
-                                signature_description,
-                                style,
-                                workspace.clone(),
-                                cx,
-                            )))
-                            .into_any_element();
-                        vec![signature_element, boarder, signature_description_element]
-                    } else {
-                        vec![signature_element]
-                    };
+        let signature_element = div()
+            .id("signature_help_popover")
+            .max_w(max_size.width)
+            .child(div().p_2().child(crate::render_parsed_markdown(
+                "signature_help_popover_content",
+                signature,
+                style,
+                workspace.clone(),
+                cx,
+            )))
+            .into_any_element();
+        let boarder = div().border_primary(cx).border_1().into_any_element();
 
-                    div()
-                        .flex()
-                        .flex_col()
-                        .children(children)
-                        .into_any_element()
-                },
-            )
-            .collect();
+        let signature_help_children = if let Some(signature_description) = signature_description {
+            let signature_description_element = div()
+                .id("signature_help_popover_description")
+                .child(div().p_2().child(crate::render_parsed_markdown(
+                    "signature_help_popover_description_content",
+                    signature_description,
+                    style,
+                    workspace.clone(),
+                    cx,
+                )))
+                .into_any_element();
+            vec![signature_element, boarder, signature_description_element]
+        } else {
+            vec![signature_element]
+        };
+        let signature_help = div()
+            .flex()
+            .flex_col()
+            .children(signature_help_children)
+            .into_any_element();
 
-        PopoverPage::new(
-            pages,
-            self.active_signature,
-            |_: &ClickEvent, _: &mut WindowContext<'_>| {},
-            |_: &ClickEvent, _: &mut WindowContext<'_>| {},
-        )
-        .render(cx)
-        .into_any_element()
+        if self.signature_help_markdowns.len() > 1 {
+            let previous_button = div().flex().flex_row().justify_center().child({
+                let current_page = self.current_page.clone();
+                Button::new("popover_page_button_previous", "↑")
+                    .size(ButtonSize::Compact)
+                    .disabled(!self.has_previous_page())
+                    .on_click(move |_, _| {
+                        *current_page.borrow_mut() -= 1;
+                    })
+                    .into_any_element()
+            });
+
+            let page = div()
+                .flex()
+                .flex_row()
+                .justify_center()
+                .child(Label::new(format!(
+                    "{} / {}",
+                    *self.current_page.borrow() + 1,
+                    self.signature_help_markdowns.len()
+                )));
+
+            let next_button = div().flex().flex_row().justify_center().child({
+                let current_page = self.current_page.clone();
+                Button::new("popover_page_button_next", "↓")
+                    .size(ButtonSize::Compact)
+                    .disabled(!self.has_next_page())
+                    .on_click(move |_, _| {
+                        *current_page.borrow_mut() += 1;
+                    })
+                    .into_any_element()
+            });
+            let buttons = div()
+                .flex()
+                .child(div().p_1().flex().flex_col_reverse().children([
+                    next_button,
+                    page,
+                    previous_button,
+                ]))
+                .into_any_element();
+
+            let boarder = div().border_primary(cx).border_1().into_any_element();
+
+            div()
+                .elevation_2(cx)
+                .flex()
+                .flex_row()
+                .children([buttons, boarder, signature_help])
+                .into_any_element()
+        } else {
+            div()
+                .elevation_2(cx)
+                .child(signature_help)
+                .into_any_element()
+        }
     }
 }

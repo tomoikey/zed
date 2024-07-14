@@ -211,17 +211,21 @@ impl Editor {
                             } else {
                                 None
                             };
-                            signature.highlights.push(signature_help.highlight);
+
+                            if let Some(highlight) = signature_help.highlight {
+                                signature.highlights.push(highlight);
+                            }
+
                             let signature_help_markdown = SignatureHelpMarkdown {
                                 signature,
                                 signature_description,
                             };
                             signature_help_markdowns.push(signature_help_markdown);
                         }
-                        Some(SignatureHelpPopover {
+                        Some(SignatureHelpPopover::new(
                             signature_help_markdowns,
-                            active_signature: signature_helps.active_signature,
-                        })
+                            signature_helps.active_signature,
+                        ))
                     } else {
                         None
                     }

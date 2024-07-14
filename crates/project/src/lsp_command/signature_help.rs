@@ -27,13 +27,13 @@ pub struct SignatureHelps {
 pub struct SignatureHelp {
     pub signature_markdown: String,
     pub description_markdown: Option<String>,
-    pub highlight: (Range<usize>, MarkdownHighlight),
+    pub highlight: Option<(Range<usize>, MarkdownHighlight)>,
 }
 
 impl SignatureHelps {
     pub fn new(help: lsp::SignatureHelp, language: Option<Arc<Language>>) -> Option<Self> {
         let active_signature = help.active_signature? as usize;
-        let active_parameter = help.active_parameter? as usize;
+        let active_parameter = help.active_parameter.map(|n| n as usize);
 
         let mut signature_helps = Vec::with_capacity(help.signatures.len());
 
@@ -75,11 +75,13 @@ impl SignatureHelps {
                                 }
                             });
 
-                    if i == active_parameter {
-                        highlight = Some((
-                            highlight_start..(highlight_start + label_length),
-                            SIGNATURE_HELP_HIGHLIGHT_CURRENT,
-                        ))
+                    if let Some(active_parameter) = active_parameter {
+                        if i == active_parameter {
+                            highlight = Some((
+                                highlight_start..(highlight_start + label_length),
+                                SIGNATURE_HELP_HIGHLIGHT_CURRENT,
+                            ))
+                        }
                     }
 
                     if i != parameter_length {
@@ -89,9 +91,11 @@ impl SignatureHelps {
                     (label, documentation)
                 })
                 .unzip();
-            let description_markdown = description_markdown
-                .get(active_parameter)
-                .and_then(|n| n.clone());
+            let description_markdown = active_parameter.and_then(|active_parameter| {
+                description_markdown
+                    .get(active_parameter)
+                    .and_then(|n| n.clone())
+            });
 
             let signature_markdown = markdown.join(str_for_join);
             let signature_markdown = if let Some(language_name) = language
@@ -106,7 +110,7 @@ impl SignatureHelps {
             signature_helps.push(SignatureHelp {
                 signature_markdown,
                 description_markdown,
-                highlight: highlight?,
+                highlight,
             });
         }
 
