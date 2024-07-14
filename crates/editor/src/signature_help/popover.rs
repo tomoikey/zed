@@ -1,11 +1,10 @@
 use crate::{Editor, EditorStyle};
 use gpui::{
-    div, AnyElement, ClickEvent, InteractiveElement, IntoElement, MouseButton, ParentElement,
-    Pixels, RenderOnce, Size, StatefulInteractiveElement, Styled, ViewContext, WeakView,
-    WindowContext,
+    div, AnyElement, ClickEvent, InteractiveElement, IntoElement, ParentElement, Pixels,
+    RenderOnce, Size, Styled, ViewContext, WeakView, WindowContext,
 };
 use language::ParsedMarkdown;
-use ui::PopoverPage;
+use ui::{PopoverPage, StyledExt};
 use workspace::Workspace;
 
 #[derive(Debug, Default, PartialEq)]
@@ -55,7 +54,7 @@ impl SignatureHelpPopover {
                  }| {
                     let signature_element = div()
                         .id("signature_help_popover")
-                        .overflow_y_scroll()
+                        .max_w(max_size.width)
                         .child(div().p_2().child(crate::render_parsed_markdown(
                             "signature_help_popover_content",
                             signature,
@@ -64,6 +63,7 @@ impl SignatureHelpPopover {
                             cx,
                         )))
                         .into_any_element();
+                    let boarder = div().border_primary(cx).border_1().into_any_element();
 
                     let children = if let Some(signature_description) = signature_description {
                         let signature_description_element = div()
@@ -76,7 +76,7 @@ impl SignatureHelpPopover {
                                 cx,
                             )))
                             .into_any_element();
-                        vec![signature_element, signature_description_element]
+                        vec![signature_element, boarder, signature_description_element]
                     } else {
                         vec![signature_element]
                     };
@@ -84,10 +84,6 @@ impl SignatureHelpPopover {
                     div()
                         .flex()
                         .flex_col()
-                        .max_w(max_size.width)
-                        .max_h(max_size.height)
-                        .on_mouse_move(|_, cx| cx.stop_propagation())
-                        .on_mouse_down(MouseButton::Left, |_, cx| cx.stop_propagation())
                         .children(children)
                         .into_any_element()
                 },
