@@ -23,7 +23,7 @@ pub struct SignatureHelps {
     pub(super) original_data: lsp::SignatureHelp,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SignatureHelp {
     pub signature_markdown: String,
     pub description_markdown: Option<String>,
@@ -239,9 +239,8 @@ fn proto_to_lsp_documentation(documentation: proto::Documentation) -> Option<lsp
 
 #[cfg(test)]
 mod tests {
-    use crate::lsp_command::signature_help::{
-        SignatureHelp, SIGNATURE_HELP_HIGHLIGHT_CURRENT, SIGNATURE_HELP_HIGHLIGHT_OVERLOAD,
-    };
+    use crate::lsp_command::signature_help::SIGNATURE_HELP_HIGHLIGHT_CURRENT;
+    use crate::lsp_command::SignatureHelps;
 
     #[test]
     fn test_create_signature_help_markdown_string_1() {
@@ -264,16 +263,20 @@ mod tests {
             active_signature: Some(0),
             active_parameter: Some(0),
         };
-        let maybe_markdown = SignatureHelp::new(signature_help, None);
-        assert!(maybe_markdown.is_some());
+        let maybe_signature_help = SignatureHelps::new(signature_help, None);
+        assert!(maybe_signature_help.is_some());
 
-        let markdown = maybe_markdown.unwrap();
-        let markdown = (markdown.signature_markdown, markdown.highlights);
+        let signature_helps = maybe_signature_help.unwrap();
+        let maybe_signature_help = signature_helps.signature_helps.get(0);
+        assert!(maybe_signature_help.is_some());
+
+        let signature_help = maybe_signature_help.unwrap().clone();
+
         assert_eq!(
-            markdown,
+            (signature_help.signature_markdown, signature_help.highlight),
             (
-                "```\nfoo: u8, bar: &str".to_string(),
-                vec![(0..7, SIGNATURE_HELP_HIGHLIGHT_CURRENT)]
+                "```foo: u8, bar: &str```".to_string(),
+                Some((0..7, SIGNATURE_HELP_HIGHLIGHT_CURRENT))
             )
         );
     }
@@ -299,23 +302,27 @@ mod tests {
             active_signature: Some(0),
             active_parameter: Some(1),
         };
-        let maybe_markdown = SignatureHelp::new(signature_help, None);
-        assert!(maybe_markdown.is_some());
+        let maybe_signature_help = SignatureHelps::new(signature_help, None);
+        assert!(maybe_signature_help.is_some());
 
-        let markdown = maybe_markdown.unwrap();
-        let markdown = (markdown.signature_markdown, markdown.highlights);
+        let signature_helps = maybe_signature_help.unwrap();
+        let maybe_signature_help = signature_helps.signature_helps.get(0);
+        assert!(maybe_signature_help.is_some());
+
+        let signature_help = maybe_signature_help.unwrap().clone();
+
         assert_eq!(
-            markdown,
+            (signature_help.signature_markdown, signature_help.highlight),
             (
-                "```\nfoo: u8, bar: &str".to_string(),
-                vec![(9..18, SIGNATURE_HELP_HIGHLIGHT_CURRENT)]
+                "```foo: u8, bar: &str```".to_string(),
+                Some((9..18, SIGNATURE_HELP_HIGHLIGHT_CURRENT))
             )
         );
     }
 
     #[test]
     fn test_create_signature_help_markdown_string_3() {
-        let signature_help = lsp::SignatureHelp {
+        let lsp_signature_help = lsp::SignatureHelp {
             signatures: vec![
                 lsp::SignatureInformation {
                     label: "fn test1(foo: u8, bar: &str)".to_string(),
@@ -351,26 +358,44 @@ mod tests {
             active_signature: Some(0),
             active_parameter: Some(0),
         };
-        let maybe_markdown = SignatureHelp::new(signature_help, None);
-        assert!(maybe_markdown.is_some());
+        let maybe_signature_help = SignatureHelps::new(lsp_signature_help.clone(), None);
+        assert!(maybe_signature_help.is_some());
 
-        let markdown = maybe_markdown.unwrap();
-        let markdown = (markdown.signature_markdown, markdown.highlights);
+        let signature_helps = maybe_signature_help.unwrap();
+        let maybe_signature_help = signature_helps.signature_helps.get(0);
+        assert!(maybe_signature_help.is_some());
+
+        let signature_help = maybe_signature_help.unwrap().clone();
+
         assert_eq!(
-            markdown,
+            (signature_help.signature_markdown, signature_help.highlight),
             (
-                "```\nfoo: u8, bar: &str (+1 overload)".to_string(),
-                vec![
-                    (0..7, SIGNATURE_HELP_HIGHLIGHT_CURRENT),
-                    (19..32, SIGNATURE_HELP_HIGHLIGHT_OVERLOAD)
-                ]
+                "```foo: u8, bar: &str```".to_string(),
+                Some((0..7, SIGNATURE_HELP_HIGHLIGHT_CURRENT))
+            )
+        );
+
+        let maybe_signature_help = SignatureHelps::new(lsp_signature_help, None);
+        assert!(maybe_signature_help.is_some());
+
+        let signature_helps = maybe_signature_help.unwrap();
+        let maybe_signature_help = signature_helps.signature_helps.get(1);
+        assert!(maybe_signature_help.is_some());
+
+        let signature_help = maybe_signature_help.unwrap().clone();
+
+        assert_eq!(
+            (signature_help.signature_markdown, signature_help.highlight),
+            (
+                "```hoge: String, fuga: bool```".to_string(),
+                Some((0..12, SIGNATURE_HELP_HIGHLIGHT_CURRENT))
             )
         );
     }
 
     #[test]
     fn test_create_signature_help_markdown_string_4() {
-        let signature_help = lsp::SignatureHelp {
+        let lsp_signature_help = lsp::SignatureHelp {
             signatures: vec![
                 lsp::SignatureInformation {
                     label: "fn test1(foo: u8, bar: &str)".to_string(),
@@ -406,26 +431,44 @@ mod tests {
             active_signature: Some(1),
             active_parameter: Some(0),
         };
-        let maybe_markdown = SignatureHelp::new(signature_help, None);
-        assert!(maybe_markdown.is_some());
+        let maybe_signature_help = SignatureHelps::new(lsp_signature_help.clone(), None);
+        assert!(maybe_signature_help.is_some());
 
-        let markdown = maybe_markdown.unwrap();
-        let markdown = (markdown.signature_markdown, markdown.highlights);
+        let signature_helps = maybe_signature_help.unwrap();
+        let maybe_signature_help = signature_helps.signature_helps.get(0);
+        assert!(maybe_signature_help.is_some());
+
+        let signature_help = maybe_signature_help.unwrap().clone();
+
         assert_eq!(
-            markdown,
+            (signature_help.signature_markdown, signature_help.highlight),
             (
-                "```\nhoge: String, fuga: bool (+1 overload)".to_string(),
-                vec![
-                    (0..12, SIGNATURE_HELP_HIGHLIGHT_CURRENT),
-                    (25..38, SIGNATURE_HELP_HIGHLIGHT_OVERLOAD)
-                ]
+                "```foo: u8, bar: &str```".to_string(),
+                Some((0..7, SIGNATURE_HELP_HIGHLIGHT_CURRENT))
+            )
+        );
+
+        let maybe_signature_help = SignatureHelps::new(lsp_signature_help, None);
+        assert!(maybe_signature_help.is_some());
+
+        let signature_helps = maybe_signature_help.unwrap();
+        let maybe_signature_help = signature_helps.signature_helps.get(1);
+        assert!(maybe_signature_help.is_some());
+
+        let signature_help = maybe_signature_help.unwrap().clone();
+
+        assert_eq!(
+            (signature_help.signature_markdown, signature_help.highlight),
+            (
+                "```hoge: String, fuga: bool```".to_string(),
+                Some((0..12, SIGNATURE_HELP_HIGHLIGHT_CURRENT))
             )
         );
     }
 
     #[test]
     fn test_create_signature_help_markdown_string_5() {
-        let signature_help = lsp::SignatureHelp {
+        let lsp_signature_help = lsp::SignatureHelp {
             signatures: vec![
                 lsp::SignatureInformation {
                     label: "fn test1(foo: u8, bar: &str)".to_string(),
@@ -461,26 +504,44 @@ mod tests {
             active_signature: Some(1),
             active_parameter: Some(1),
         };
-        let maybe_markdown = SignatureHelp::new(signature_help, None);
-        assert!(maybe_markdown.is_some());
+        let maybe_signature_help = SignatureHelps::new(lsp_signature_help.clone(), None);
+        assert!(maybe_signature_help.is_some());
 
-        let markdown = maybe_markdown.unwrap();
-        let markdown = (markdown.signature_markdown, markdown.highlights);
+        let signature_helps = maybe_signature_help.unwrap();
+        let maybe_signature_help = signature_helps.signature_helps.get(0);
+        assert!(maybe_signature_help.is_some());
+
+        let signature_help = maybe_signature_help.unwrap().clone();
+
         assert_eq!(
-            markdown,
+            (signature_help.signature_markdown, signature_help.highlight),
             (
-                "```\nhoge: String, fuga: bool (+1 overload)".to_string(),
-                vec![
-                    (14..24, SIGNATURE_HELP_HIGHLIGHT_CURRENT),
-                    (25..38, SIGNATURE_HELP_HIGHLIGHT_OVERLOAD)
-                ]
+                "```foo: u8, bar: &str```".to_string(),
+                Some((9..18, SIGNATURE_HELP_HIGHLIGHT_CURRENT))
+            )
+        );
+
+        let maybe_signature_help = SignatureHelps::new(lsp_signature_help, None);
+        assert!(maybe_signature_help.is_some());
+
+        let signature_helps = maybe_signature_help.unwrap();
+        let maybe_signature_help = signature_helps.signature_helps.get(1);
+        assert!(maybe_signature_help.is_some());
+
+        let signature_help = maybe_signature_help.unwrap().clone();
+
+        assert_eq!(
+            (signature_help.signature_markdown, signature_help.highlight),
+            (
+                "```hoge: String, fuga: bool```".to_string(),
+                Some((14..24, SIGNATURE_HELP_HIGHLIGHT_CURRENT))
             )
         );
     }
 
     #[test]
     fn test_create_signature_help_markdown_string_6() {
-        let signature_help = lsp::SignatureHelp {
+        let lsp_signature_help = lsp::SignatureHelp {
             signatures: vec![
                 lsp::SignatureInformation {
                     label: "fn test1(foo: u8, bar: &str)".to_string(),
@@ -516,132 +577,107 @@ mod tests {
             active_signature: Some(1),
             active_parameter: None,
         };
-        let maybe_markdown = SignatureHelp::new(signature_help, None);
-        assert!(maybe_markdown.is_some());
+        let maybe_signature_help = SignatureHelps::new(lsp_signature_help.clone(), None);
+        assert!(maybe_signature_help.is_some());
 
-        let markdown = maybe_markdown.unwrap();
-        let markdown = (markdown.signature_markdown, markdown.highlights);
+        let signature_helps = maybe_signature_help.unwrap();
+        let maybe_signature_help = signature_helps.signature_helps.get(0);
+        assert!(maybe_signature_help.is_some());
+
+        let signature_help = maybe_signature_help.unwrap().clone();
+
         assert_eq!(
-            markdown,
-            (
-                "```\nhoge: String, fuga: bool (+1 overload)".to_string(),
-                vec![(25..38, SIGNATURE_HELP_HIGHLIGHT_OVERLOAD)]
-            )
+            (signature_help.signature_markdown, signature_help.highlight),
+            ("```foo: u8, bar: &str```".to_string(), None)
+        );
+
+        let maybe_signature_help = SignatureHelps::new(lsp_signature_help, None);
+        assert!(maybe_signature_help.is_some());
+
+        let signature_helps = maybe_signature_help.unwrap();
+        let maybe_signature_help = signature_helps.signature_helps.get(1);
+        assert!(maybe_signature_help.is_some());
+
+        let signature_help = maybe_signature_help.unwrap().clone();
+
+        assert_eq!(
+            (signature_help.signature_markdown, signature_help.highlight),
+            ("```hoge: String, fuga: bool```".to_string(), None)
         );
     }
 
     #[test]
     fn test_create_signature_help_markdown_string_7() {
-        let signature_help = lsp::SignatureHelp {
+        let lsp_signature_help = lsp::SignatureHelp {
+            signatures: vec![],
+            active_signature: None,
+            active_parameter: None,
+        };
+        let maybe_markdown = SignatureHelps::new(lsp_signature_help, None);
+        assert!(maybe_markdown.is_none());
+    }
+
+    #[test]
+    fn test_create_signature_help_markdown_string_8() {
+        let lsp_signature_help = lsp::SignatureHelp {
             signatures: vec![
                 lsp::SignatureInformation {
-                    label: "fn test1(foo: u8, bar: &str)".to_string(),
+                    label: "function test(foo: number)".to_string(),
                     documentation: None,
-                    parameters: Some(vec![
-                        lsp::ParameterInformation {
-                            label: lsp::ParameterLabel::Simple("foo: u8".to_string()),
-                            documentation: None,
-                        },
-                        lsp::ParameterInformation {
-                            label: lsp::ParameterLabel::Simple("bar: &str".to_string()),
-                            documentation: None,
-                        },
-                    ]),
+                    parameters: Some(vec![lsp::ParameterInformation {
+                        label: lsp::ParameterLabel::Simple("foo: number".to_string()),
+                        documentation: None,
+                    }]),
                     active_parameter: None,
                 },
                 lsp::SignatureInformation {
-                    label: "fn test2(hoge: String, fuga: bool)".to_string(),
+                    label: "function test(foo: number, bar: boolean)".to_string(),
                     documentation: None,
                     parameters: Some(vec![
                         lsp::ParameterInformation {
-                            label: lsp::ParameterLabel::Simple("hoge: String".to_string()),
+                            label: lsp::ParameterLabel::Simple("foo: number".to_string()),
                             documentation: None,
                         },
                         lsp::ParameterInformation {
-                            label: lsp::ParameterLabel::Simple("fuga: bool".to_string()),
-                            documentation: None,
-                        },
-                    ]),
-                    active_parameter: None,
-                },
-                lsp::SignatureInformation {
-                    label: "fn test3(one: usize, two: u32)".to_string(),
-                    documentation: None,
-                    parameters: Some(vec![
-                        lsp::ParameterInformation {
-                            label: lsp::ParameterLabel::Simple("one: usize".to_string()),
-                            documentation: None,
-                        },
-                        lsp::ParameterInformation {
-                            label: lsp::ParameterLabel::Simple("two: u32".to_string()),
+                            label: lsp::ParameterLabel::Simple("bar: boolean".to_string()),
                             documentation: None,
                         },
                     ]),
                     active_parameter: None,
                 },
             ],
-            active_signature: Some(2),
+            active_signature: Some(1),
             active_parameter: Some(1),
         };
-        let maybe_markdown = SignatureHelp::new(signature_help, None);
-        assert!(maybe_markdown.is_some());
 
-        let markdown = maybe_markdown.unwrap();
-        let markdown = (markdown.signature_markdown, markdown.highlights);
+        let maybe_signature_help = SignatureHelps::new(lsp_signature_help.clone(), None);
+        assert!(maybe_signature_help.is_some());
+
+        let signature_helps = maybe_signature_help.unwrap();
+        let maybe_signature_help = signature_helps.signature_helps.get(0);
+        assert!(maybe_signature_help.is_some());
+
+        let signature_help = maybe_signature_help.unwrap().clone();
+
         assert_eq!(
-            markdown,
-            (
-                "```\none: usize, two: u32 (+2 overload)".to_string(),
-                vec![
-                    (12..20, SIGNATURE_HELP_HIGHLIGHT_CURRENT),
-                    (21..34, SIGNATURE_HELP_HIGHLIGHT_OVERLOAD)
-                ]
-            )
+            (signature_help.signature_markdown, signature_help.highlight),
+            ("```foo: number```".to_string(), None)
         );
-    }
 
-    #[test]
-    fn test_create_signature_help_markdown_string_8() {
-        let signature_help = lsp::SignatureHelp {
-            signatures: vec![],
-            active_signature: None,
-            active_parameter: None,
-        };
-        let maybe_markdown = SignatureHelp::new(signature_help, None);
-        assert!(maybe_markdown.is_none());
-    }
+        let maybe_signature_help = SignatureHelps::new(lsp_signature_help, None);
+        assert!(maybe_signature_help.is_some());
 
-    #[test]
-    fn test_create_signature_help_markdown_string_9() {
-        let signature_help = lsp::SignatureHelp {
-            signatures: vec![lsp::SignatureInformation {
-                label: "fn test(foo: u8, bar: &str)".to_string(),
-                documentation: None,
-                parameters: Some(vec![
-                    lsp::ParameterInformation {
-                        label: lsp::ParameterLabel::LabelOffsets([8, 15]),
-                        documentation: None,
-                    },
-                    lsp::ParameterInformation {
-                        label: lsp::ParameterLabel::LabelOffsets([17, 26]),
-                        documentation: None,
-                    },
-                ]),
-                active_parameter: None,
-            }],
-            active_signature: Some(0),
-            active_parameter: Some(0),
-        };
-        let maybe_markdown = SignatureHelp::new(signature_help, None);
-        assert!(maybe_markdown.is_some());
+        let signature_helps = maybe_signature_help.unwrap();
+        let maybe_signature_help = signature_helps.signature_helps.get(1);
+        assert!(maybe_signature_help.is_some());
 
-        let markdown = maybe_markdown.unwrap();
-        let markdown = (markdown.signature_markdown, markdown.highlights);
+        let signature_help = maybe_signature_help.unwrap().clone();
+
         assert_eq!(
-            markdown,
+            (signature_help.signature_markdown, signature_help.highlight),
             (
-                "```\nfoo: u8, bar: &str".to_string(),
-                vec![(0..7, SIGNATURE_HELP_HIGHLIGHT_CURRENT)]
+                "```foo: number, bar: boolean```".to_string(),
+                Some((13..25, SIGNATURE_HELP_HIGHLIGHT_CURRENT))
             )
         );
     }

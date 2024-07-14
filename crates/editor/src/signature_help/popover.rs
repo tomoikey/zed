@@ -9,7 +9,7 @@ use std::rc::Rc;
 use ui::{Button, ButtonCommon, ButtonSize, Clickable, Disableable, Label, StyledExt};
 use workspace::Workspace;
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq, Clone)]
 pub struct SignatureHelpPopover {
     signature_help_markdowns: Vec<SignatureHelpMarkdown>,
     current_page: Rc<RefCell<usize>>,
@@ -165,5 +165,16 @@ impl SignatureHelpPopover {
                 .child(signature_help)
                 .into_any_element()
         }
+    }
+}
+
+#[cfg(test)]
+impl SignatureHelpPopover {
+    pub fn signature_help_markdowns(&self) -> &[SignatureHelpMarkdown] {
+        &self.signature_help_markdowns
+    }
+
+    pub fn current_page(&self) -> usize {
+        *self.current_page.borrow()
     }
 }
