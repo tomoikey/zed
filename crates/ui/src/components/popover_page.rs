@@ -80,54 +80,38 @@ impl RenderOnce for PopoverPage {
             .pages
             .remove(popover_page.current)
             .into_any_element();
+        let current_page = div().child(current_page).into_any_element();
 
         if length > 1 {
-            let previous_button = div()
-                .flex()
-                .flex_row()
-                .content_center()
-                .items_center()
-                .justify_center()
-                .child(
-                    Button::new("popover_page_button_previous", "↑")
-                        .size(ButtonSize::Large)
-                        .disabled(disabled_previous_button)
-                        .on_click(move |event, cx| {
-                            on_click_previous(event, cx);
-                        })
-                        .into_any_element(),
-                );
+            let previous_button = div().flex().flex_row().justify_center().child(
+                Button::new("popover_page_button_previous", "↑")
+                    .size(ButtonSize::Compact)
+                    .disabled(disabled_previous_button)
+                    .on_click(move |event, cx| {
+                        on_click_previous(event, cx);
+                    })
+                    .into_any_element(),
+            );
             let page = div()
                 .flex()
                 .flex_row()
-                .content_center()
-                .items_center()
                 .justify_center()
                 .child(Label::new(format!(
                     "{} / {}",
                     popover_page.current + 1,
                     length
                 )));
-            let next_button = div()
-                .flex()
-                .flex_row()
-                .content_center()
-                .items_center()
-                .justify_center()
-                .child(
-                    Button::new("popover_page_button_next", "↓")
-                        .size(ButtonSize::Large)
-                        .disabled(disabled_next_button)
-                        .on_click(move |event, cx| {
-                            on_click_next(event, cx);
-                        })
-                        .into_any_element(),
-                );
+            let next_button = div().flex().flex_row().justify_center().child(
+                Button::new("popover_page_button_next", "↓")
+                    .size(ButtonSize::Compact)
+                    .disabled(disabled_next_button)
+                    .on_click(move |event, cx| {
+                        on_click_next(event, cx);
+                    })
+                    .into_any_element(),
+            );
             let buttons = div()
                 .flex()
-                .content_center()
-                .items_center()
-                .justify_center()
                 .child(div().p_1().flex().flex_col_reverse().children([
                     next_button,
                     page,
