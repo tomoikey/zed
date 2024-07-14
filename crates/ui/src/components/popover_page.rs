@@ -68,11 +68,12 @@ impl RenderOnce for PopoverPage {
         let on_click_previous = popover_page.on_click_previous;
         let on_click_next = popover_page.on_click_next;
 
-        // remove may panic if the current page is out of bounds
+        // `remove` may panic if the current page is out of bounds
         if popover_page.pages.get(popover_page.current).is_none() {
             return div().into_any_element();
         }
 
+        // after removing the current page, the length of the pages vector will be reduced by 1
         let length = popover_page.pages.len();
 
         let current_page = popover_page
@@ -80,39 +81,70 @@ impl RenderOnce for PopoverPage {
             .remove(popover_page.current)
             .into_any_element();
 
-        let previous_button = Button::new("popover_page_button_previous", "↑")
-            .size(ButtonSize::Large)
-            .disabled(disabled_previous_button)
-            .on_click(move |event, cx| {
-                on_click_previous(event, cx);
-            })
-            .into_any_element();
-        let page = div()
-            .items_center()
-            .child(Label::new(format!(
-                "{} / {}",
-                popover_page.current + 1,
-                length
-            )))
-            .into_any_element();
-        let next_button = Button::new("popover_page_button_next", "↓")
-            .size(ButtonSize::Large)
-            .disabled(disabled_next_button)
-            .on_click(move |event, cx| {
-                on_click_next(event, cx);
-            })
-            .into_any_element();
-        let buttons = div()
-            .flex()
-            .flex_col_reverse()
-            .children([next_button, page, previous_button])
-            .into_any_element();
+        if length > 1 {
+            let previous_button = div()
+                .flex()
+                .flex_row()
+                .content_center()
+                .items_center()
+                .justify_center()
+                .child(
+                    Button::new("popover_page_button_previous", "↑")
+                        .size(ButtonSize::Large)
+                        .disabled(disabled_previous_button)
+                        .on_click(move |event, cx| {
+                            on_click_previous(event, cx);
+                        })
+                        .into_any_element(),
+                );
+            let page = div()
+                .flex()
+                .flex_row()
+                .content_center()
+                .items_center()
+                .justify_center()
+                .child(Label::new(format!(
+                    "{} / {}",
+                    popover_page.current + 1,
+                    length
+                )));
+            let next_button = div()
+                .flex()
+                .flex_row()
+                .content_center()
+                .items_center()
+                .justify_center()
+                .child(
+                    Button::new("popover_page_button_next", "↓")
+                        .size(ButtonSize::Large)
+                        .disabled(disabled_next_button)
+                        .on_click(move |event, cx| {
+                            on_click_next(event, cx);
+                        })
+                        .into_any_element(),
+                );
+            let buttons = div()
+                .flex()
+                .content_center()
+                .items_center()
+                .justify_center()
+                .child(div().p_1().flex().flex_col_reverse().children([
+                    next_button,
+                    page,
+                    previous_button,
+                ]))
+                .into_any_element();
 
-        div()
-            .elevation_2(cx)
-            .flex()
-            .flex_row()
-            .children([buttons, current_page])
-            .into_any_element()
+            let boarder = div().border_primary(cx).border_1().into_any_element();
+
+            div()
+                .elevation_2(cx)
+                .flex()
+                .flex_row()
+                .children([buttons, boarder, current_page])
+                .into_any_element()
+        } else {
+            div().elevation_2(cx).child(current_page).into_any_element()
+        }
     }
 }
